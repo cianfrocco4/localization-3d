@@ -180,7 +180,35 @@ tcLocMgr::Predict()
     } while(ros::ok() && lrForwardDelta < 0.1 && lrHeadingDelta < 0.05);
     
     ROS_INFO_STREAM("Forward delta = " << lrForwardDelta << " HeadingDelta = " << lrHeadingDelta);
-}
+    
+    if(!ros::ok())
+    {
+        return;
+    }
+    else if(lrHeadingDelta >= 0.05 && lrForwardDelta < 0.1)
+    {
+        mbOnlyTurning = true;
+    }
+    else
+    {
+        mbOnlyTurning = false;
+    }
+
+    for(int lnI = 0; lnI < mcParticleVec.size(); ++lnI)
+    {
+        mcParticleVec[lnI].msPose.mrTheta += lrCurrHeading - lrPrevHeading;
+        
+        tcMapMgr::tsCoords lsTemp(mcParticleVec[lnI].msPose.mrX, 
+                mcParticleVec[lnI].msPose.mrY);
+
+        tcMapMgr::tsCoords lsNewParticlePointMtrs = mcMapMgr.CalcPoint(
+                lsTemp, mcParticleVec[lnI].msPose.mrTheta, lrForwardDelta);
+
+        // TODO - add noise
+        mcParticleVec[lnI].msPose.mrX = lsNewParticlePointMtrs.mrX;
+        mcParticleVec[lnI].msPose.mrY = lsNewParticlePointMtrs.mrY;
+    }
+}   
 
 
 ///////////////////////////////////////////////////////////////////////////////
