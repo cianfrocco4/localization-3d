@@ -137,6 +137,8 @@ tcLocMgr::InitializeParticles(
 void
 tcLocMgr::Predict()
 {
+    ROS_INFO("Predict()");
+
     // Prediction Phase
     //  1) get motion since last cycle
     //  2) convert to forward delta and angular delta
@@ -174,6 +176,8 @@ tcLocMgr::Predict()
 
         lrHeadingDelta = std::abs(lrCurrHeading - lrPrevHeading);
     } while(ros::ok() && lrForwardDelta < 0.1 && lrHeadingDelta < 0.05);
+    
+    ROS_INFO_STREAM("Forward delta = " << lrForwardDelta << " HeadingDelta = " << lrHeadingDelta);
 }
 
 

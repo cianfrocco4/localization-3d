@@ -21,7 +21,8 @@
 tcMapMgr::tcMapMgr(const std::vector<CommonTypes::tsPose> &arcStartingPoseVec,
                    const std::string &arcMapFilename, int argc, char* argv[]) :
     mcLocalMap(snWinY),
-    mbOnlyTurning(false)
+    mbOnlyTurning(false),
+    mbWinReady(false)
 {
     std::srand(std::time(nullptr));
     scDrawMap = std::vector<std::vector<std::vector<float>>>(snWinY);
@@ -1063,6 +1064,11 @@ void
 tcMapMgr::DrawParticlesFromMeters(
         std::vector<CommonTypes::tsParticle> acParticleVecMtrs)
 {
+    ROS_INFO("DrawParticlesFromMeters()");
+
+    // wait until the window is ready
+    while(!mbWinReady) {}
+
     // for each particle
     //      convert from meters to pixels
     //      draw as red pixel on map
@@ -1093,6 +1099,8 @@ void
 tcMapMgr::UndrawParticlesFromMeters(
         std::vector<CommonTypes::tsParticle> acParticleVecMtrs)
 {
+    ROS_INFO("UndrawParticlesFromMeters()");
+
     // for each particle
     //      convert from meters to pixels
     //      draw as red pixel on map
