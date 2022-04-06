@@ -58,12 +58,12 @@ tcLocMgr::Localize()
 
     while(ros::ok())
     {
-        // Undraw the particles on the map before doing prediction
+ 	// Undraw the particles on the map before doing prediction
         mcMapMgr.UndrawParticlesFromMeters(mcParticleVec);
 
         // 1) Predict()
         Predict();
-
+/*
         // Redraw the predicted particles
         mcMapMgr.DrawParticlesFromMeters(mcParticleVec);
 
@@ -74,8 +74,10 @@ tcLocMgr::Localize()
 
         // 3) Resample();
         Resample(); 
-
+*/
+	sleep(2);
         mcMapMgr.DrawParticlesFromMeters(mcParticleVec);
+	sleep(2);
 
         // Get updated sensor readings
         mcPrevOdom = mcCurrOdom;
