@@ -1093,6 +1093,8 @@ tcMapMgr::DrawParticlesFromMeters(
         }
 
     }
+
+    glutPostRedisplay();
 }
 
 void
@@ -1125,6 +1127,8 @@ tcMapMgr::UndrawParticlesFromMeters(
         }
 
     }
+
+    glutPostRedisplay();
 }
 
 bool
