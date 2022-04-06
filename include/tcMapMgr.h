@@ -88,6 +88,12 @@ public:
      */
     bool CheckLocalMapForObstacle(const int anX, const int anY);
 
+    /**
+     * Calcs a point from a point at the given angle and distance
+     */
+    tsCoords CalcPoint(tsCoords asCurrCoord, float arAngleFromOrigin, 
+            float arDist) const;
+
 private:
     /**                                                                              
      * Opens the Map gui                                                             
@@ -130,12 +136,6 @@ private:
      * Handles the prediction phase of localization.
      */
     void Predict();
-
-    /**
-     * Calcs a point from a point at the given angle and distance
-     */
-    tsCoords CalcPoint(tsCoords asCurrCoord, float arAngleFromOrigin, 
-            float arDist) const;
 
     /**
      * Handle the update phase of localization

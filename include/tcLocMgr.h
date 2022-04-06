@@ -232,6 +232,8 @@ private:
      */
     tcHwController mcHwCtrl;
 
+    bool mbOnlyTurning;
+
     const float mrMinRange = 0.45;
     const float mrMaxRange = 10.0;
 };
