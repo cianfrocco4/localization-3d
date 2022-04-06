@@ -71,7 +71,7 @@ main(int argc, char *argv[])
         std::vector<CommonTypes::tsPose> lcStartingPoseVec = 
             ReadStartingPoseList(argv[1]);
 
-        ros::init(argc, argv, "localization_3d");
+        ros::init(argc, argv, "localization-3d");
 
         tcLocMgr lcLocMgr(lcStartingPoseVec, argv[2], argc, argv);
         lcLocMgr.Run(argc, argv);
