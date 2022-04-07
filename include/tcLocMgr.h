@@ -236,6 +236,11 @@ private:
 
     const float mrMinRange = 0.45;
     const float mrMaxRange = 10.0;
+
+    /**
+     * Determines how many times the width (angle) is incremented per scan
+     */
+    int mnWidthInc;
 };
 
 #endif /* INCLUDE_TCLOCMGR_H */

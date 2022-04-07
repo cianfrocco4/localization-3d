@@ -31,7 +31,7 @@ public:
     /**
      * Ctor
      */
-    tcHwController(int argc, char* argv[]);
+    tcHwController(int argc, char* argv[], int anWidthInc);
 
     /**
      * Dtor
@@ -93,6 +93,9 @@ public:
      * Get the most current converted depth image
      */
     CommonTypes::tsDepthImage GetMostRecentConvertedDepthImage() const;
+
+    bool CheckReady() const;
+
 private:
 
     /**
@@ -125,7 +128,7 @@ private:
     void Convert(const sensor_msgs::ImageConstPtr& arpDepthMsg,
             const image_geometry::PinholeCameraModel& arcCamModel,
             CommonTypes::tsDepthImage &arsDepthImage, 
-            const int& arnScanHeight) const
+            const int& arnScanHeight, const int anWidthInc) const
     {
         // Use correct principal point from calibration
         const float center_x = arcCamModel.cx();
@@ -140,16 +143,22 @@ private:
 
         arsDepthImage.mnRowIncrement = row_step;
 
-        // Want to start at row 0
-//        const int offset = (int)(center_y - arnScanHeight/2);
-//        depth_row += offset*row_step; // Offset to center of image        
+        // Offset to start at the bottom of the desired scan height
+        const int offset = (int)(center_y - arnScanHeight/2);
+        depth_row += offset*row_step; // Offset to center of image        
 
         std::vector<std::vector<float>> lcDepthVals{};
 
-        for(int v = 0; v < (int)arpDepthMsg->height; ++v, depth_row += row_step)
+	const int lnHeightInc = arnScanHeight / 3.0; // amount to increment v by
+
+	ROS_INFO_STREAM("HeightInc = " << lnHeightInc << ", WidthInc = " << anWidthInc << 
+			", ColInc = " << (int)arpDepthMsg->width / anWidthInc << ", ScanHeight = " <<
+			arnScanHeight);
+
+        for(int v = offset; v < offset + arnScanHeight; v += lnHeightInc, depth_row += (lnHeightInc * row_step))
         {
             std::vector<float> lcRowDepthVals{};
-            for(int u = 0; u < (int)arpDepthMsg->width; ++u)
+            for(int u = 0; u < (int)arpDepthMsg->width; u += ((int)arpDepthMsg->width / anWidthInc))
             {
                 const T depth = depth_row[u];
                 double r = depth; // Assign to pass through NaNs and Infs
@@ -170,7 +179,7 @@ private:
  
                     lcRowDepthVals.push_back(r);
                     ROS_INFO_STREAM("Adding depth value: (" << r << 
-                            " meters) at x = " << x << ", z = " << z); 
+                            " meters) at x = " << x << ", z = " << z << " --- v = " << v << ", u = " << u); 
                 }
                 else
                 {
@@ -293,6 +302,9 @@ private:
     float mrLocalizedYMtrs;
     float mrLocalizedZ;
     bool mbIsLocalized;
+
+    int mnWidthInc;
+    bool mbReady;
 
     const float mrMinRange = 0.45;
     const float mrMaxRange = 10.0;

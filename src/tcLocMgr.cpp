@@ -18,8 +18,10 @@ tcLocMgr::tcLocMgr(
         int argc, 
         char *argv[]) :
     mcMapMgr(arcStartingPoseVec, arcMapFilename, argc, argv),
-    mcHwCtrl(argc, argv)
+    mnWidthInc(10),
+    mcHwCtrl(argc, argv, 10)
 {
+    ROS_INFO_STREAM("tcLocMgr CTOR: mnWidthInc = " << mnWidthInc);
     // Initalize particles
     InitializeParticles(arcStartingPoseVec);
 }
@@ -50,6 +52,11 @@ tcLocMgr::Localize()
     // Draw the intial particles
     mcMapMgr.DrawParticlesFromMeters(mcParticleVec);
 
+    // Wait until the HW Controller is ready
+    while(!mcHwCtrl.CheckReady()) {}
+
+    ROS_INFO("HW Controller is ready!");
+
     // init curr robot sensor data
     mcCurrOdom = mcHwCtrl.GetMostRecentOdom();
     //mcCurrLaserScan = mcHwCtrl.GetMostRecentKinnectScan(); // TODO - change to depth img
@@ -63,7 +70,7 @@ tcLocMgr::Localize()
 
         // 1) Predict()
         Predict();
-/*
+
         // Redraw the predicted particles
         mcMapMgr.DrawParticlesFromMeters(mcParticleVec);
 
@@ -74,10 +81,9 @@ tcLocMgr::Localize()
 
         // 3) Resample();
         Resample(); 
-*/
-	sleep(2);
+
+	// Redraw the updated and resampled particles
         mcMapMgr.DrawParticlesFromMeters(mcParticleVec);
-	sleep(2);
 
         // Get updated sensor readings
         mcPrevOdom = mcCurrOdom;
@@ -155,6 +161,8 @@ tcLocMgr::Predict()
             mcPrevOdom.pose.pose.orientation.w);
 
 
+    ROS_INFO("Waiting for movement...");
+
     // loop until either the forward or angular delta has changed "enough"
     do
     {
@@ -204,6 +212,9 @@ tcLocMgr::Predict()
         tcMapMgr::tsCoords lsNewParticlePointMtrs = mcMapMgr.CalcPoint(
                 lsTemp, mcParticleVec[lnI].msPose.mrTheta, lrForwardDelta);
 
+	ROS_INFO_STREAM("Moving point from (" << mcParticleVec[lnI].msPose.mrX << ", " << mcParticleVec[lnI].msPose.mrY << ") to (" <<
+			lsNewParticlePointMtrs.mrX << ", " << lsNewParticlePointMtrs.mrY << ")");
+
         // TODO - add noise
         mcParticleVec[lnI].msPose.mrX = lsNewParticlePointMtrs.mrX;
         mcParticleVec[lnI].msPose.mrY = lsNewParticlePointMtrs.mrY;
@@ -243,8 +254,16 @@ tcLocMgr::GetEstimatedDistVec(const float arMinAngle,
                      const float arMaxRange,
                      const CommonTypes::tsPose &arsPose)
 {
+	
+    ROS_INFO_STREAM("GetEstimtedDistVec: MinAngle = " << arMinAngle << ", MaxAngle = " << arMaxAngle <<
+		    ", AngleInc = " << arAngleInc << ", MaxRange = " << arMaxRange << ", Pose = (" <<
+		    arsPose.mrX << ", " << arsPose.mrY << ", " << arsPose.mrTheta << ")");
+
     // init to -0.4 radians, about the widest the kinect can sense
     float lrAngleOffset = arMinAngle;
+    float lrAngleInc = std::abs((arMaxAngle - arMinAngle)) / mnWidthInc;
+
+    ROS_INFO_STREAM("AngleInc = " << lrAngleInc);    
 
     std::vector<float> lcDistVec{};
 
@@ -273,12 +292,12 @@ tcLocMgr::GetEstimatedDistVec(const float arMinAngle,
 
         lcDistVec.push_back(lrDistAwayFromRobot);
 
-        std::cout << "Found obstacle at distance, angle: " <<
-            lrDistAwayFromRobot << ", " <<
-            lrAngleOffset + arsPose.mrTheta << " from pixel: (" <<
-            arsPose.mrX << ", " << arsPose.mrY << ")\n";
+        std::cout << "Found obstacle at distance = " << 
+            lrDistAwayFromRobot << " meters, heading = " <<
+            lrAngleOffset + arsPose.mrTheta << " degrees for pixel: (" <<
+            arsPose.mrX << ", " << arsPose.mrY << ")" << ", AngleOffset = " << lrAngleOffset << " deg\n";
 
-        lrAngleOffset += arAngleInc; // Increment to the next angle
+        lrAngleOffset += lrAngleInc; // Increment to the next angle
     }
 
     return lcDistVec;
@@ -292,7 +311,7 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
 {
     const float lrMaxAngle = msCurrDepthImage.mrAngleMax; // radians
     const float lrMinAngle = msCurrDepthImage.mrAngleMin; // radians
-    const float lrAngleInc = 0.052; // about 3 degrees //msCurrDepthImage.mrAngleIncrement; // radians
+    const float lrAngleInc = msCurrDepthImage.mrAngleIncrement; // radians
 
     const float lrMaxRange = msCurrDepthImage.mrRangeMax; // meters
     const float lrMinRange = msCurrDepthImage.mrRangeMin; // meters

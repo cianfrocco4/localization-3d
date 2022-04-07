@@ -11,7 +11,7 @@
 #include <iostream>
 #include "std_msgs/Bool.h"
 
-tcHwController::tcHwController(int argc, char* argv[]) :
+tcHwController::tcHwController(int argc, char* argv[], int anWidthInc) :
     mcLoopRate(10),
     mbFinishFlag(false),
     mrLocalizedXMtrs(0),
@@ -19,11 +19,15 @@ tcHwController::tcHwController(int argc, char* argv[]) :
     mrLocalizedZ(0),
     mbIsLocalized(false),
     mcNodeHandle(ros::NodeHandle()),
-    mcImageTransport(mcNodeHandle)
+    mcImageTransport(mcNodeHandle),
+    mnWidthInc(anWidthInc),
+    mbReady(false)
 {
-    // Create the ros node
+ 	// Create the ros node
 //    ros::init(argc,argv,"localization-3d");
     mcNodeHandle = ros::NodeHandle();        
+
+    ROS_INFO_STREAM("tcHwController CTOR: mnWidthInc = " << mnWidthInc << ", anWidthInc = " << anWidthInc);
 
     mcOdomSub = mcNodeHandle.subscribe("/r1/odom", 1, 
             &tcHwController::OdomCallback, this);
@@ -45,7 +49,7 @@ tcHwController::tcHwController(int argc, char* argv[]) :
 
     mcImageTransportSub = 
         mcImageTransport.subscribeCamera(
-                "image", 1, &tcHwController::DepthCallback, this, lcHints);
+                "/camera/depth/image", 1, &tcHwController::DepthCallback, this, lcHints);
 
     ROS_INFO("Setup Depth Sub complete");
 
@@ -273,7 +277,9 @@ tcHwController::DepthCallback(const sensor_msgs::ImageConstPtr& arpDepthMsg,
 */
     // Convert msg from pixels to meters
     ConvertDepthMsg(arpDepthMsg, arpInfoMsg);
-
+    
+    if(!mbReady)
+        mbReady = true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -283,6 +289,8 @@ void
 tcHwController::ConvertDepthMsg(const sensor_msgs::ImageConstPtr& arpDepthMsg,
         const sensor_msgs::CameraInfoConstPtr& arpInfoMsg)
 {
+    ROS_INFO("ConvertDepthMsg");
+
     // Set camera model
     mcCamModel.fromCameraInfo(arpInfoMsg);
 
@@ -307,15 +315,17 @@ tcHwController::ConvertDepthMsg(const sensor_msgs::ImageConstPtr& arpDepthMsg,
     // that from the depth image
     const double angle_min = -AngleBetweenRays(center_ray, right_ray); 
 
+    ROS_INFO_STREAM("HwCtrl: minAngle = " << angle_min << ", maxAngle = " << angle_max);
+
     msDepthImage.mrAngleMin = angle_min;
     msDepthImage.mrAngleMax = angle_max;
     msDepthImage.mrAngleIncrement = 
         (angle_max - angle_min) / (arpDepthMsg->width - 1);
-    msDepthImage.mrRangeMin = mrMinRange;
-    msDepthImage.mrRangeMax = mrMaxRange;
+    msDepthImage.mrRangeMin = 0.5;  //mrMinRange;
+    msDepthImage.mrRangeMax = 10.0; //mrMaxRange;
 
-    // Defaulting to 1 ???
-    const int lnScanHeight = 1;
+    // Only use middle 50% of the scan
+    const int lnScanHeight = (int)arpDepthMsg->height / 10.0;
  
     // Check scan height vs image height
     if(lnScanHeight / 2 > mcCamModel.cy() || 
@@ -337,13 +347,16 @@ tcHwController::ConvertDepthMsg(const sensor_msgs::ImageConstPtr& arpDepthMsg,
                 std::numeric_limits<float>::quiet_NaN())
     ); 
 */
+    ROS_INFO_STREAM("Converting DepthMsg for ScanHeight = " << lnScanHeight << 
+		    ", WidthInc = " << mnWidthInc << "\n");
+
     if(arpDepthMsg->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
     {
-        Convert<uint16_t>(arpDepthMsg, mcCamModel, msDepthImage, lnScanHeight);
+        Convert<uint16_t>(arpDepthMsg, mcCamModel, msDepthImage, lnScanHeight, mnWidthInc);
     }
     else if (arpDepthMsg->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
     {
-        Convert<float>(arpDepthMsg, mcCamModel, msDepthImage, lnScanHeight);
+        Convert<float>(arpDepthMsg, mcCamModel, msDepthImage, lnScanHeight, mnWidthInc);
     }
     else
     {
@@ -377,3 +390,8 @@ tcHwController::GetMostRecentConvertedDepthImage() const
     return msDepthImage;
 }
 
+bool
+tcHwController::CheckReady() const
+{
+    return mbReady;
+}
