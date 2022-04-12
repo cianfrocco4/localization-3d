@@ -162,6 +162,9 @@ tcLocMgr::Predict()
             mcPrevOdom.pose.pose.orientation.w);
 
 
+    // Show the particles current position on the map while we wait for the
+    // robot to make a movement.
+    mcMapMgr.DrawParticlesFromMeters(mcParticleVec);
     ROS_INFO("Waiting for movement...");
 
     // loop until either the forward or angular delta has changed "enough"
@@ -187,7 +190,9 @@ tcLocMgr::Predict()
 
         lrHeadingDelta = std::abs(lrCurrHeading - lrPrevHeading);
     } while(ros::ok() && lrForwardDelta < 0.1 && lrHeadingDelta < 0.05);
-    
+
+    mcMapMgr.UndrawParticlesFromMeters(mcParticleVec);
+
     ROS_INFO_STREAM("Forward delta = " << lrForwardDelta << " HeadingDelta = " << lrHeadingDelta <<
 		    ", PrevOdom = (" << mcPrevOdom.pose.pose.position.x << ", " << 
 		    mcPrevOdom.pose.pose.position.y << ") CurrOdom = (" << 
@@ -335,6 +340,9 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
     // check if particle is in a obstacle
     if(mcMapMgr.IsPoseInMtrsValid(arsPart.msPose) == false)
     {
+        ROS_INFO_STREAM("Particle at (" << arsPart.msPose.mrX << 
+                ", " << arsPart.msPose.mrY << ") is NOT valid, prob = 0");
+
         lrProb = 0;
     }
     else
@@ -369,19 +377,19 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
 
                         if(lrRangeDelta > 2)
                         {
-                            lrProb *= 0.1;
+                            lrProb *= 0.5;
                         }
                         else if(lrRangeDelta > 1)
                         {
-                            lrProb *= 0.3;
+                            lrProb *= 0.9;
                         }
                         else if(lrRangeDelta > 0.5)
                         {
-                            lrProb *= 0.6;
+                            lrProb *= 0.95;
                         }
                         else
                         {
-                            lrProb *= 0.9;
+                            lrProb *= 0.99;
                         }
 
                         lnEstIdx++;
@@ -437,9 +445,16 @@ tcLocMgr::NormalizeParticles()
         lrSum += lsP.mrProb;
     }
 
+    ROS_INFO_STREAM("NormalizeParticles() sum = " << lrSum);
+
     for(int lnI = 0; lnI < mcParticleVec.size(); ++lnI)
     {
         mcParticleVec[lnI].mrProb = mcParticleVec[lnI].mrProb / lrSum; 
+
+        ROS_INFO_STREAM("Normalized prob for part (" << 
+                mcParticleVec[lnI].msPose.mrX << ", " << 
+                mcParticleVec[lnI].msPose.mrY << ") = " <<
+                mcParticleVec[lnI].mrProb);
     }
 }
 
@@ -462,16 +477,21 @@ tcLocMgr::GetRand(float arVal)
 // See Header File
 ///////////////////////////////////////////////////////////////////////////////
 void
-tcLocMgr::GenerateNewParticles(const float arXPercent)
+tcLocMgr::GenerateNewParticles(const int anNumToGenerate)
 {
-    float lrN = 1 - arXPercent;
-    int lnNewSize = lrN / mcParticleVec.size();
-    int lnNumberToGenerate = lnNewSize - mcParticleVec.size();
+//    float lrN = 1 - arXPercent;
+//    int lnNewSize = lrN / mcParticleVec.size();
+//    int lnNewSize = lrN * mcParticleVec.size();
+//    int lnNumberToGenerate = lnNewSize - mcParticleVec.size();
+
+    int lnNumberToGenerate = anNumToGenerate;
+
+    ROS_INFO_STREAM("Number to Generate = " << lnNumberToGenerate); 
 
     while(lnNumberToGenerate > 0)
     {
         int lnSize = mcParticleVec.size();
-        const float lrForwardNoiseScalar = 1; // in pixels
+        const float lrForwardNoiseScalar = 0.05; // in meters
         const float lrAngularNoiseScalar = 0;
         for(int lnI = 0; lnI < (lnSize / 4) && lnI < lnNumberToGenerate; lnI++)
         {
@@ -491,6 +511,16 @@ tcLocMgr::GenerateNewParticles(const float arXPercent)
     }
 }
 
+bool 
+tcLocMgr::ProbIsZero(const CommonTypes::tsParticle &arsPart)
+{
+    ROS_INFO_STREAM("ProbIsZero for particle: (" << 
+            arsPart.msPose.mrX << ", " << arsPart.msPose.mrY << ") = " <<
+            arsPart.mrProb);
+
+    return arsPart.mrProb == 0.0;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // See Header File
 ///////////////////////////////////////////////////////////////////////////////
@@ -507,6 +537,22 @@ tcLocMgr::Resample()
 
     NormalizeParticles();
 
+    const int lnPrevSize = mcParticleVec.size();
+
+    int temp = mcParticleVec.size();
+    
+    // Remove if prob = 0
+    mcParticleVec.erase(
+            std::remove_if(
+                mcParticleVec.begin(), 
+                mcParticleVec.end(), 
+                tcLocMgr::ProbIsZero), 
+            mcParticleVec.end());
+
+    ROS_INFO_STREAM((temp - mcParticleVec.size())  << " particles had prob = 0");
+
+
+    // Sort in order of Higher Prob -> Lower Prob
     std::sort(mcParticleVec.begin(), mcParticleVec.end(),
             [this](CommonTypes::tsParticle const &lhs,
                 CommonTypes::tsParticle const &rhs)
@@ -524,6 +570,9 @@ tcLocMgr::Resample()
     mcParticleVec.erase(mcParticleVec.begin() + lnBeginBadPart,
             mcParticleVec.end());
 
-    GenerateNewParticles(lrXPercent);
+    const int lnNewSize = mcParticleVec.size();
+
+    const int lnNumToGen = lnPrevSize - lnNewSize;
+    GenerateNewParticles(lnNumToGen);
 }
 

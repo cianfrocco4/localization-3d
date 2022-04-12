@@ -40,6 +40,7 @@ public:
      */
     void Run(int argc, char *argv[]);
 
+    static bool ProbIsZero(const CommonTypes::tsParticle &arsPart);
 private:
     /**
      * Threaded function that will do the localization.
@@ -75,7 +76,7 @@ private:
     /**
      * Generate new particles based on current ones with high prob.
      */
-    void GenerateNewParticles(const float arXPercent);
+    void GenerateNewParticles(const int anNumToGenerate);
 
     /**
      * Returns a random number.
