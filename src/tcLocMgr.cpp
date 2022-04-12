@@ -18,8 +18,8 @@ tcLocMgr::tcLocMgr(
         int argc, 
         char *argv[]) :
     mcMapMgr(arcStartingPoseVec, arcMapFilename, argc, argv),
-    mnWidthInc(10),
-    mcHwCtrl(argc, argv, 10)
+    mnWidthInc(25),
+    mcHwCtrl(argc, argv, 25)
 {
     ROS_INFO_STREAM("tcLocMgr CTOR: mnWidthInc = " << mnWidthInc);
     // Initalize particles
@@ -84,11 +84,12 @@ tcLocMgr::Localize()
 
 	// Redraw the updated and resampled particles
         mcMapMgr.DrawParticlesFromMeters(mcParticleVec);
-
         // Get updated sensor readings
         mcPrevOdom = mcCurrOdom;
         mcCurrOdom = mcHwCtrl.GetMostRecentOdom();
         msCurrDepthImage = mcHwCtrl.GetMostRecentConvertedDepthImage();
+    
+	sleep(1);
     }
 }
 
@@ -187,7 +188,11 @@ tcLocMgr::Predict()
         lrHeadingDelta = std::abs(lrCurrHeading - lrPrevHeading);
     } while(ros::ok() && lrForwardDelta < 0.1 && lrHeadingDelta < 0.05);
     
-    ROS_INFO_STREAM("Forward delta = " << lrForwardDelta << " HeadingDelta = " << lrHeadingDelta);
+    ROS_INFO_STREAM("Forward delta = " << lrForwardDelta << " HeadingDelta = " << lrHeadingDelta <<
+		    ", PrevOdom = (" << mcPrevOdom.pose.pose.position.x << ", " << 
+		    mcPrevOdom.pose.pose.position.y << ") CurrOdom = (" << 
+		    mcCurrOdom.pose.pose.position.x << ", " << 
+		    mcCurrOdom.pose.pose.position.y << ")");
     
     if(!ros::ok())
     {
@@ -398,7 +403,7 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
 void
 tcLocMgr::Update()
 {
-    // TODO
+    ROS_INFO("Update()");
 
     // Update Phase
     //  1) For each particle
@@ -413,6 +418,10 @@ tcLocMgr::Update()
         CommonTypes::tsParticle lsCurrPart = mcParticleVec[lnI];
 
         mcParticleVec[lnI].mrProb = CalcParticleProb(lsCurrPart);
+
+	ROS_INFO_STREAM("Updating particle at (" << lsCurrPart.msPose.mrX << ", " << 
+			lsCurrPart.msPose.mrY << "( to prob = " << mcParticleVec[lnI].mrProb <<
+			"\n");
     }
 }
 
@@ -488,6 +497,8 @@ tcLocMgr::GenerateNewParticles(const float arXPercent)
 void
 tcLocMgr::Resample()
 {
+    ROS_INFO("Resample()");
+
     // Resample
     //  a) Normalize all prob values
     //  b) check if particles are < theshold value and get rid of it if yes

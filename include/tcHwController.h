@@ -149,7 +149,7 @@ private:
 
         std::vector<std::vector<float>> lcDepthVals{};
 
-	const int lnHeightInc = arnScanHeight / 3.0; // amount to increment v by
+	const int lnHeightInc = arnScanHeight / 4.0; // amount to increment v by
 
 	ROS_INFO_STREAM("HeightInc = " << lnHeightInc << ", WidthInc = " << anWidthInc << 
 			", ColInc = " << (int)arpDepthMsg->width / anWidthInc << ", ScanHeight = " <<
