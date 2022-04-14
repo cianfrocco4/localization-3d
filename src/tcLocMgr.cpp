@@ -145,9 +145,9 @@ tcLocMgr::InitializeParticles(
 
     for(auto lsPose : arcStartingPoseVec)
     {
-        const int lnParticleWidth = 5;
-        const int lnParticleHeight = 5;
-        const float lrParticleOffsetMtrs = 0.1; 
+        const int lnParticleWidth = 30;
+        const int lnParticleHeight = 30;
+        const float lrParticleOffsetMtrs = 0.09; 
 
         float lrXmtrs = lsPose.mrX - (lnParticleWidth * (lrParticleOffsetMtrs / 2.0));
         while(lrXmtrs < lsPose.mrX + (lnParticleWidth * (lrParticleOffsetMtrs / 2.0)))
@@ -387,7 +387,9 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
 
     ROS_INFO_STREAM("CurrDepthMsg: MaxAngle = " << lrMaxAngle << 
             ", MinAngle = " << lrMinAngle << 
-            ", AngleInc = " << msCurrDepthImage.mrAngleIncrement << "\n");
+            ", AngleInc = " << msCurrDepthImage.mrAngleIncrement << 
+            ", lnNumRows = " << lnNumRows << 
+            "\n");
 
     // only consider middle 80% rows
     const int lnStartRow = lnNumRows * 0; 
@@ -412,6 +414,87 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
             GetEstimatedDistVec(lrMinAngle, lrMaxAngle, lrMaxRange,
                                 lrEstAngleInc, lsPose);
 
+        // Init the vector with 0 values
+        std::vector<float> lcAvgActualDistPerColVec(
+                msCurrDepthImage.mcRanges[0].size(), 0.0);
+
+        std::vector<int> lcNumRowsUsedPerCol(
+                msCurrDepthImage.mcRanges[0].size(), 0);
+
+        // Get the sum of ranges for each column
+        for(auto lcRow : msCurrDepthImage.mcRanges)
+        {
+            int lnColIdx = 0;
+            for(auto lrRange : lcRow)
+            {
+                if(isnormal(lrRange))
+                    lcAvgActualDistPerColVec[lnColIdx] += lrRange;
+                    lcNumRowsUsedPerCol[lnColIdx] += 1;
+                lnColIdx++;       
+            }
+        }
+
+        ROS_INFO_STREAM("lcEstimatedDistVec.size() = " << 
+                lcEstimatedDistVec.size() << 
+                ", lcAvgActualDistPerColVec.size() = " <<
+                lcAvgActualDistPerColVec.size() << "\n");
+
+        for(int lnI = 0; lnI < lcAvgActualDistPerColVec.size(); lnI++)
+        {
+            // Divide sums by num rows to get average for each col
+            auto lrRange = lcAvgActualDistPerColVec[lnI] / 
+                lcNumRowsUsedPerCol[lnI];
+
+            ROS_INFO_STREAM("Avg Actual Range for Col=" << lnI <<
+                    " = " << lcAvgActualDistPerColVec[lnI] << 
+                    " / " << lnNumRows << " = " << 
+                    lrRange << "\n");
+
+            const float lrAngleFromHeading = lrMinAngle + 
+                (lnI * lrEstAngleInc);
+
+            const float lrRangeDelta = 
+                std::abs(lrRange - lcEstimatedDistVec[lnI]);
+
+            ROS_INFO_STREAM("At angle = " << lrAngleFromHeading << 
+                    " Actual Range = " << lrRange <<
+                    " Estimated Range = " << lcEstimatedDistVec[lnI] <<
+                    "\n");
+
+            if(lrRange == 0)
+            {
+                // no Kinect data to compare t
+                // do nothing
+            }
+            else if(lrRangeDelta > 3)
+            {
+                lrProb *= 0.5;
+                //lrProb *= 0.8;
+            }
+            else if(lrRangeDelta > 2)
+            {
+                lrProb *= 0.7;
+                //lrProb *= 0.85;
+            }
+            else if(lrRangeDelta > 1)
+            {
+                lrProb *= 0.85;
+                //lrProb *= 0.9;
+            }
+            else if(lrRangeDelta > 0.5)
+            {
+                //lrProb *= 0.8;
+                lrProb *= 0.95;
+            }
+            else
+            {
+                lrProb *= 0.99;
+            }
+        }
+    }
+
+
+/*
         int lnRow = 0;
         // Compare estimated ranges to actual in CurrDepthImage
         for (auto lcRow : msCurrDepthImage.mcRanges)
@@ -481,6 +564,7 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
             lnRow++;
         }
     }
+*/
 
 /*
     if(!isnormal(lrProb))

@@ -1,6 +1,6 @@
 <launch>
         <node pkg="localization-3d" type="localization-3d" name="localization"
-args="$(find localization-3d)/starting_locations_one-two.txt $(find
+args="$(find localization-3d)/starting_locations_sidehall.txt $(find
 localization-3d)/golisano.png 3 10">
                 <remap from="/r1/odom" to="pose"/>
                 <remap from="/r1/cmd_vel" to="cmd_vel"/>

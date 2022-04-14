@@ -253,8 +253,8 @@ private:
 
     const float mrMinRange = 0.45;
     const float mrMaxRange = 10.0;
-    const float mrForwardNoiseScalar = 0.05; // meters
-    const float mrAngularNoiseScalar = 0.017; // radians
+    const float mrForwardNoiseScalar = 0.1; // meters
+    const float mrAngularNoiseScalar = 0.087; // radians
 
 
     /**
