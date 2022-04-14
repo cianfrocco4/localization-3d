@@ -31,7 +31,8 @@ public:
     /**
      * Ctor
      */
-    tcHwController(int argc, char* argv[], int anWidthInc);
+    tcHwController(int argc, char* argv[], int anWidthInc, 
+            const int anNumRows);
 
     /**
      * Dtor
@@ -149,9 +150,9 @@ private:
 
         std::vector<std::vector<float>> lcDepthVals{};
 
-	const int lnHeightInc = arnScanHeight / 4.0; // amount to increment v by
+	    const int lnHeightInc = arnScanHeight / mnNumRows; // amount to increment v by
 
-	ROS_INFO_STREAM("HeightInc = " << lnHeightInc << ", WidthInc = " << anWidthInc << 
+	    ROS_INFO_STREAM("HeightInc = " << lnHeightInc << ", WidthInc = " << anWidthInc << 
 			", ColInc = " << (int)arpDepthMsg->width / anWidthInc << ", ScanHeight = " <<
 			arnScanHeight);
 
@@ -178,8 +179,8 @@ private:
                     r = hypot(x, z);
  
                     lcRowDepthVals.push_back(r);
-                    ROS_INFO_STREAM("Adding depth value: (" << r << 
-                            " meters) at x = " << x << ", z = " << z << " --- v = " << v << ", u = " << u); 
+//                    ROS_INFO_STREAM("Adding depth value: (" << r << 
+//                            " meters) at x = " << x << ", z = " << z << " --- v = " << v << ", u = " << u); 
                 }
                 else
                 {
@@ -303,6 +304,7 @@ private:
     float mrLocalizedZ;
     bool mbIsLocalized;
 
+    int mnNumRows;
     int mnWidthInc;
     bool mbReady;
 

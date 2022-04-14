@@ -67,12 +67,13 @@ tcMapMgr::Shutdown()
 void                                                                                 
 tcMapMgr::Run(int argc, char *argv[])                                                
 {
-    mcMapThread = std::thread(&tcMapMgr::Mapper, this);
-    std::thread(&tcMapMgr::RedisplayThread, this).detach();
+//    mcMapThread = std::thread(&tcMapMgr::Mapper, this);
+//    std::thread(&tcMapMgr::RedisplayThread, this).detach();
 
     LaunchGui(argc, argv);                                                           
                                                                                      
-    mcMapThread.join();                                                              
+//    mcMapThread.join();
+    //lcThread.join();                                            
 }  
 
 void
@@ -171,14 +172,14 @@ tcMapMgr::Mapper()
         auto start = std::chrono::high_resolution_clock::now();
 
         // 2) Prediction Phase
-        Predict();
-        DrawParticles();
+        //Predict();
+        //DrawParticles();
 
 //        std::cout << "Finished prediction******************************\n";
 
         // DONT update or resample if the robot only turned and didn't move
         // forward at all
-        if(!mbOnlyTurning)
+/*        if(!mbOnlyTurning)
         {
             // 3) Update Phase
             Update();
@@ -190,6 +191,7 @@ tcMapMgr::Mapper()
             DrawParticles();
         }
         glutPostRedisplay();   
+*/
 
 //        std::cout << "Finished resample********************************\n";
 
@@ -197,6 +199,7 @@ tcMapMgr::Mapper()
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 //        std::cout << "Time for step: " << duration.count() << " microseconds\n";
 
+/*        
         if(IsConverged())
         {
             // publish is_converge = true
@@ -229,6 +232,7 @@ tcMapMgr::Mapper()
 
             //mcHwCtrl.SetLocOdom(lsAvg.mrX, lsAvg.mrY, lrZAvg);
         }
+*/
     }
 } 
 
@@ -1055,8 +1059,9 @@ tcMapMgr::RedisplayThread()
 {
    while(true)
    {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-//        if(mbWinReady)
+        //std::this_thread::sleep_for(std::chrono::seconds(1));
+        if(mbWinReady)
+            glutPostRedisplay();
    }
 }
 
@@ -1128,7 +1133,7 @@ tcMapMgr::UndrawParticlesFromMeters(
 
     }
 
-    glutPostRedisplay();
+    //glutPostRedisplay();
 }
 
 bool

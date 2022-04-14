@@ -23,7 +23,7 @@
 void
 PrintUsage()
 {
-    std::cout << "Usage: ./localization-3d <start_locations_filename> <map_filename>\n";
+    std::cout << "Usage: ./localization-3d <start_locations_filename> <map_filename> <num_rows> <num_cols>\n";
 }
 
 std::vector<CommonTypes::tsPose>
@@ -62,7 +62,7 @@ ReadStartingPoseList(const std::string acFilename)
 int
 main(int argc, char *argv[])
 {
-    if(argc < 3)
+    if(argc < 5)
     {
         PrintUsage();
     }
@@ -71,9 +71,16 @@ main(int argc, char *argv[])
         std::vector<CommonTypes::tsPose> lcStartingPoseVec = 
             ReadStartingPoseList(argv[1]);
 
+        const int lnNumRows = atoi(argv[3]);
+        const int lnNumCols = atoi(argv[4]);
+
+        std::cout << "NumRows = " << lnNumRows << 
+            " NumCols = " << lnNumCols << "\n";
+
         ros::init(argc, argv, "localization-3d");
 
-        tcLocMgr lcLocMgr(lcStartingPoseVec, argv[2], argc, argv);
+        tcLocMgr lcLocMgr(lcStartingPoseVec, argv[2], lnNumRows, lnNumCols, 
+                          argc, argv);
         lcLocMgr.Run(argc, argv);
     }
 }

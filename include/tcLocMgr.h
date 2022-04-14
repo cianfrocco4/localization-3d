@@ -28,7 +28,8 @@ public:
      * CTOR
      */
     tcLocMgr(const std::vector<CommonTypes::tsPose> &arcStartingPoseVec,
-             const std::string &arcMapFilename, int argc, char *argv[]);
+             const std::string &arcMapFilename, const int anNumRows, 
+             const int anNumCols,int argc, char *argv[]);
 
     /**
      * DTOR
@@ -100,10 +101,25 @@ private:
      */
     std::vector<float> GetEstimatedDistVec(const float arMinAngle,
                                                const float arMaxAngle,
-                                               const float arAngleInc,
                                                const float arMaxRange,
+                                               const float arAngleInc,
                                                const CommonTypes::tsPose &arsPose); 
 
+    /**
+     * Compute the covariance of the provided vectors
+     */
+    float Covariance(std::vector<float> vec1, 
+            std::vector<float> vec2, int n) const;
+
+    /**
+     * Return whether or not the robot has converged w/in 0.5 meters
+     */
+    bool IsConverged();
+
+    /**
+     * Return the mean of the provided vector
+     */
+    float Mean(std::vector<float> vec, int n) const; 
     /**
      * Convert the depth image to x y z coordinates that are more easy to 
      * work with.
@@ -237,6 +253,9 @@ private:
 
     const float mrMinRange = 0.45;
     const float mrMaxRange = 10.0;
+    const float mrForwardNoiseScalar = 0.05; // meters
+    const float mrAngularNoiseScalar = 0.017; // radians
+
 
     /**
      * Determines how many times the width (angle) is incremented per scan

@@ -11,7 +11,8 @@
 #include <iostream>
 #include "std_msgs/Bool.h"
 
-tcHwController::tcHwController(int argc, char* argv[], int anWidthInc) :
+tcHwController::tcHwController(int argc, char* argv[], int anWidthInc,
+        const int anNumRows) :
     mcLoopRate(10),
     mbFinishFlag(false),
     mrLocalizedXMtrs(0),
@@ -21,13 +22,14 @@ tcHwController::tcHwController(int argc, char* argv[], int anWidthInc) :
     mcNodeHandle(ros::NodeHandle()),
     mcImageTransport(mcNodeHandle),
     mnWidthInc(anWidthInc),
-    mbReady(false)
+    mbReady(false),
+    mnNumRows(anNumRows)
 {
  	// Create the ros node
 //    ros::init(argc,argv,"localization-3d");
     mcNodeHandle = ros::NodeHandle();        
 
-    ROS_INFO_STREAM("tcHwController CTOR: mnWidthInc = " << mnWidthInc << ", anWidthInc = " << anWidthInc);
+    ROS_INFO_STREAM("tcHwController CTOR: mnWidthInc = " << mnWidthInc << ", anNumRows = " << anNumRows);
 
     mcOdomSub = mcNodeHandle.subscribe("/r1/odom", 1, 
             &tcHwController::OdomCallback, this);
@@ -324,8 +326,8 @@ tcHwController::ConvertDepthMsg(const sensor_msgs::ImageConstPtr& arpDepthMsg,
     msDepthImage.mrRangeMin = 0.5;  //mrMinRange;
     msDepthImage.mrRangeMax = 10.0; //mrMaxRange;
 
-    // Only use middle 50% of the scan
-    const int lnScanHeight = (int)arpDepthMsg->height / 10.0;
+    // Only use middle % of the scan
+    const int lnScanHeight = (int)arpDepthMsg->height * 0.5;
  
     // Check scan height vs image height
     if(lnScanHeight / 2 > mcCamModel.cy() || 

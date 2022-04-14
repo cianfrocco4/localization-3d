@@ -9,17 +9,21 @@
 
 #include <tcLocMgr.h>
 
+#include <chrono>
+
 ///////////////////////////////////////////////////////////////////////////////
 // See Header File
 ///////////////////////////////////////////////////////////////////////////////
 tcLocMgr::tcLocMgr(
         const std::vector<CommonTypes::tsPose> &arcStartingPoseVec,
-        const std::string &arcMapFilename, 
+        const std::string &arcMapFilename,
+        const int anNumRows,
+        const int anNumCols, 
         int argc, 
         char *argv[]) :
     mcMapMgr(arcStartingPoseVec, arcMapFilename, argc, argv),
-    mnWidthInc(25),
-    mcHwCtrl(argc, argv, 25)
+    mnWidthInc(anNumCols),
+    mcHwCtrl(argc, argv, anNumCols, anNumRows)
 {
     ROS_INFO_STREAM("tcLocMgr CTOR: mnWidthInc = " << mnWidthInc);
     // Initalize particles
@@ -32,7 +36,6 @@ tcLocMgr::tcLocMgr(
 void
 tcLocMgr::Run(int argc, char *argv[])
 {
-
     // Start a thread that will do localization
     mcLocalizeThread = std::thread(&tcLocMgr::Localize, this);
 
@@ -63,6 +66,8 @@ tcLocMgr::Localize()
     msCurrDepthImage = mcHwCtrl.GetMostRecentConvertedDepthImage();
     mcPrevOdom = mcCurrOdom;
 
+    auto lcStart = std::chrono::high_resolution_clock::now();
+
     while(ros::ok())
     {
  	// Undraw the particles on the map before doing prediction
@@ -89,7 +94,42 @@ tcLocMgr::Localize()
         mcCurrOdom = mcHwCtrl.GetMostRecentOdom();
         msCurrDepthImage = mcHwCtrl.GetMostRecentConvertedDepthImage();
     
-	sleep(1);
+        if(IsConverged())
+        {
+            // compute averge x, y, z coords
+            float lrXAvg = 0;
+            float lrYAvg = 0;
+            float lrZAvg = 0;
+            for(auto lsP : mcParticleVec)
+            {
+                // sum all values
+                lrXAvg += lsP.msPose.mrX;
+                lrYAvg += lsP.msPose.mrY;
+                lrZAvg += lsP.msPose.mrTheta;
+            }
+
+            lrXAvg /= mcParticleVec.size();
+            lrYAvg /= mcParticleVec.size();
+            lrZAvg /= mcParticleVec.size();
+          
+            ROS_INFO_STREAM("Localized Odom: ( " << lrXAvg << ", " <<
+                            lrYAvg << ", " << lrZAvg << " )" << 
+                            std::endl);
+
+
+            auto lcStop = std::chrono::high_resolution_clock::now();
+
+            auto lcDuration = std::chrono::duration_cast<std::chrono::microseconds>(
+                    lcStop - lcStart);
+
+            ROS_INFO_STREAM("Time taken to localize = " << lcDuration.count() << 
+                " microseconds\n");
+
+
+            //break;
+        }
+
+	    //sleep(0.5);
     }
 }
 
@@ -107,7 +147,7 @@ tcLocMgr::InitializeParticles(
     {
         const int lnParticleWidth = 30;
         const int lnParticleHeight = 30;
-        const float lrParticleOffsetMtrs = 0.5; 
+        const float lrParticleOffsetMtrs = 0.1; 
 
         float lrXmtrs = lsPose.mrX - (lnParticleWidth * (lrParticleOffsetMtrs / 2.0));
         while(lrXmtrs < lsPose.mrX + (lnParticleWidth * (lrParticleOffsetMtrs / 2.0)))
@@ -222,12 +262,18 @@ tcLocMgr::Predict()
         tcMapMgr::tsCoords lsNewParticlePointMtrs = mcMapMgr.CalcPoint(
                 lsTemp, mcParticleVec[lnI].msPose.mrTheta, lrForwardDelta);
 
-	ROS_INFO_STREAM("Moving point from (" << mcParticleVec[lnI].msPose.mrX << ", " << mcParticleVec[lnI].msPose.mrY << ") to (" <<
+	    ROS_INFO_STREAM("Moving point from (" << mcParticleVec[lnI].msPose.mrX << ", " << mcParticleVec[lnI].msPose.mrY << ") to (" <<
 			lsNewParticlePointMtrs.mrX << ", " << lsNewParticlePointMtrs.mrY << ")");
 
-        // TODO - add noise
-        mcParticleVec[lnI].msPose.mrX = lsNewParticlePointMtrs.mrX;
-        mcParticleVec[lnI].msPose.mrY = lsNewParticlePointMtrs.mrY;
+        // Adding noise
+        float lrRand = GetRand(mrForwardNoiseScalar); // get rand number
+        mcParticleVec[lnI].msPose.mrX = lsNewParticlePointMtrs.mrX + lrRand;
+
+        lrRand = GetRand(mrForwardNoiseScalar);
+        mcParticleVec[lnI].msPose.mrY = lsNewParticlePointMtrs.mrY + lrRand;
+
+        lrRand = GetRand(mrAngularNoiseScalar);
+        mcParticleVec[lnI].msPose.mrTheta += lrRand;
     }
 }   
 
@@ -260,8 +306,8 @@ tcLocMgr::WalkLine(std::vector<tcMapMgr::tsCoords> acCoordsVec)
 std::vector<float>
 tcLocMgr::GetEstimatedDistVec(const float arMinAngle,
                      const float arMaxAngle,
-                     const float arAngleInc,
                      const float arMaxRange,
+                     const float arAngleInc,
                      const CommonTypes::tsPose &arsPose)
 {
 	
@@ -271,7 +317,7 @@ tcLocMgr::GetEstimatedDistVec(const float arMinAngle,
 
     // init to -0.4 radians, about the widest the kinect can sense
     float lrAngleOffset = arMinAngle;
-    float lrAngleInc = std::abs((arMaxAngle - arMinAngle)) / mnWidthInc;
+    float lrAngleInc = arAngleInc; //std::abs((arMaxAngle - arMinAngle)) / mnWidthInc;
 
     ROS_INFO_STREAM("AngleInc = " << lrAngleInc);    
 
@@ -304,7 +350,7 @@ tcLocMgr::GetEstimatedDistVec(const float arMinAngle,
 
         std::cout << "Found obstacle at distance = " << 
             lrDistAwayFromRobot << " meters, heading = " <<
-            lrAngleOffset + arsPose.mrTheta << " degrees for pixel: (" <<
+            lrAngleOffset + arsPose.mrTheta << " degrees for particle: (" <<
             arsPose.mrX << ", " << arsPose.mrY << ")" << ", AngleOffset = " << lrAngleOffset << " deg\n";
 
         lrAngleOffset += lrAngleInc; // Increment to the next angle
@@ -319,9 +365,19 @@ tcLocMgr::GetEstimatedDistVec(const float arMinAngle,
 float
 tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
 {
+    ROS_INFO_STREAM("CalcParticleProb() for Particle (" <<
+            arsPart.msPose.mrX << ", " << 
+            arsPart.msPose.mrY << ", " <<
+            arsPart.msPose.mrTheta << ") " <<
+            "Prev_prob = " << arsPart.mrProb << "\n");
+
     const float lrMaxAngle = msCurrDepthImage.mrAngleMax; // radians
     const float lrMinAngle = msCurrDepthImage.mrAngleMin; // radians
     const float lrAngleInc = msCurrDepthImage.mrAngleIncrement; // radians
+    const float lrEstAngleInc = 
+        std::abs((lrMaxAngle - lrMinAngle)) / mnWidthInc;
+
+    ROS_INFO_STREAM("lrEstAngleInc = " << lrEstAngleInc << "\n");
 
     const float lrMaxRange = msCurrDepthImage.mrRangeMax; // meters
     const float lrMinRange = msCurrDepthImage.mrRangeMin; // meters
@@ -329,9 +385,13 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
 
     const int lnNumRows = msCurrDepthImage.mcRanges.size();
 
-    // only consider middle 50% rows
-    const int lnStartRow = lnNumRows * 0.25; 
-    const int lnEndRow = lnNumRows * 0.75;
+    ROS_INFO_STREAM("CurrDepthMsg: MaxAngle = " << lrMaxAngle << 
+            ", MinAngle = " << lrMinAngle << 
+            ", AngleInc = " << msCurrDepthImage.mrAngleIncrement << "\n");
+
+    // only consider middle 80% rows
+    const int lnStartRow = lnNumRows * 0; 
+    const int lnEndRow = lnNumRows * 1;
 
     float lrProb = arsPart.mrProb;
 
@@ -350,7 +410,7 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
         // Vector of distances to obstacles at angles b/w min and max angle
         auto lcEstimatedDistVec = 
             GetEstimatedDistVec(lrMinAngle, lrMaxAngle, lrMaxRange,
-                                lrAngleInc, lsPose);
+                                lrEstAngleInc, lsPose);
 
         int lnRow = 0;
         // Compare estimated ranges to actual in CurrDepthImage
@@ -362,29 +422,49 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
                 int lnEstIdx = 0;
                 for(auto lrRange : lcRow)
                 {
+                    if(isnan(lrRange))
+                        continue;
+
                     const float lrImageAngle = lrMinAngle + 
-                        (lnCol * msCurrDepthImage.mrAngleIncrement);
+                        (lnCol * lrEstAngleInc);//msCurrDepthImage.mrAngleIncrement);
 
                     const float lrEstimatedAngle = lrMinAngle + 
-                        (lnEstIdx * lrAngleInc);
+                        (lnEstIdx * lrEstAngleInc);
 
-                    if(std::abs(lrImageAngle - lrEstimatedAngle) < 0.0001)
+                    if(true or std::abs(lrImageAngle - lrEstimatedAngle) < 0.0001)
                     {
                         const float lrCurrHeight = lnRow * lrVerticalInc;
 
                         const float lrRangeDelta = 
                             std::abs(lrRange - lcEstimatedDistVec[lnEstIdx]);
 
-                        if(lrRangeDelta > 2)
+                        ROS_INFO_STREAM("At angle = " << lrImageAngle << 
+                                " Actual Range = " << lrRange <<
+                                " Estimated Range = " << lcEstimatedDistVec[lnEstIdx] <<
+                                " CurrHeight = " << lrCurrHeight << 
+                                "\n");
+
+                        if(lrRangeDelta > 4)
                         {
-                            lrProb *= 0.5;
+                            // purposely ignore
+                        }
+                        if(lrRangeDelta > 3)
+                        {
+                            //lrProb *= 0.5;
+                            lrProb *= 0.8;
+                        }
+                        else if(lrRangeDelta > 2)
+                        {
+                            lrProb *= 0.85;
                         }
                         else if(lrRangeDelta > 1)
                         {
+                            //lrProb *= 0.65;
                             lrProb *= 0.9;
                         }
                         else if(lrRangeDelta > 0.5)
                         {
+                            //lrProb *= 0.8;
                             lrProb *= 0.95;
                         }
                         else
@@ -401,6 +481,14 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
             lnRow++;
         }
     }
+
+/*
+    if(!isnormal(lrProb))
+    {
+        ROS_INFO("Prob is not normal, setting to 0");
+        lrProb = 0;
+    }
+*/
 
     return lrProb;
 }
@@ -451,6 +539,13 @@ tcLocMgr::NormalizeParticles()
     {
         mcParticleVec[lnI].mrProb = mcParticleVec[lnI].mrProb / lrSum; 
 
+/*
+        if(!isnormal(mcParticleVec[lnI].mrProb))
+        {   
+            ROS_INFO("Normalized prob is NOT normal, setting to 0");
+            mcParticleVec[lnI].mrProb = 0;
+        }
+*/
         ROS_INFO_STREAM("Normalized prob for part (" << 
                 mcParticleVec[lnI].msPose.mrX << ", " << 
                 mcParticleVec[lnI].msPose.mrY << ") = " <<
@@ -491,17 +586,17 @@ tcLocMgr::GenerateNewParticles(const int anNumToGenerate)
     while(lnNumberToGenerate > 0)
     {
         int lnSize = mcParticleVec.size();
-        const float lrForwardNoiseScalar = 0.05; // in meters
-        const float lrAngularNoiseScalar = 0;
+        //const float lrForwardNoiseScalar = 0.1; // in meters
+        //const float lrAngularNoiseScalar = 0.05; // 0.05 radians ~= 3 degrees
         for(int lnI = 0; lnI < (lnSize / 4) && lnI < lnNumberToGenerate; lnI++)
         {
             auto lsP = mcParticleVec[lnI];
             CommonTypes::tsParticle lsNew(CommonTypes::tsPose(0, 0, 0), 0);
-            float lrRand = GetRand(lrForwardNoiseScalar); // get rand number
+            float lrRand = GetRand(mrForwardNoiseScalar); // get rand number
             lsNew.msPose.mrX = lsP.msPose.mrX + lrRand; // adding noise
-            lrRand = GetRand(lrForwardNoiseScalar);
+            lrRand = GetRand(mrForwardNoiseScalar);
             lsNew.msPose.mrY = lsP.msPose.mrY + lrRand;
-            lrRand = GetRand(lrAngularNoiseScalar);
+            lrRand = GetRand(mrAngularNoiseScalar);
             lsNew.msPose.mrTheta = lsP.msPose.mrTheta + lrRand;
             lsNew.mrProb = lsP.mrProb;
 
@@ -574,5 +669,50 @@ tcLocMgr::Resample()
 
     const int lnNumToGen = lnPrevSize - lnNewSize;
     GenerateNewParticles(lnNumToGen);
+}
+
+float 
+tcLocMgr::Covariance(
+        std::vector<float> vec1, std::vector<float> vec2, int n) const
+{
+   float sum = 0;
+   for(int i = 0; i < n; i++)
+      sum = sum + (vec1[i] - Mean(vec1, n)) * (vec2[i] - Mean(vec2, n));
+   return sum / (n - 1);
+}
+
+bool
+tcLocMgr::IsConverged()
+{
+    ROS_INFO("IsConverged()");
+
+    bool lbConverged = false;
+
+    std::vector<float> lcXs, lcYs;
+    for(auto lsP : mcParticleVec)
+    {
+        lcXs.push_back(lsP.msPose.mrX);
+        lcYs.push_back(lsP.msPose.mrY);
+    }
+
+    float lrCov = Covariance(lcXs, lcYs, lcXs.size());
+
+    std::cout << "Covariance b/w Xs and Ys = " << lrCov << std::endl;
+
+    if(std::abs(lrCov) < 0.1) // in meters 
+    {
+        lbConverged = true;
+    }
+
+    return lbConverged;
+}
+
+float 
+tcLocMgr::Mean(std::vector<float> vec, int n) const
+{
+   float sum = 0;
+   for(int i = 0; i < n; i++)
+   sum = sum + vec[i];
+   return sum / n;
 }
 
