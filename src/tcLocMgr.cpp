@@ -145,8 +145,8 @@ tcLocMgr::InitializeParticles(
 
     for(auto lsPose : arcStartingPoseVec)
     {
-        const int lnParticleWidth = 30;
-        const int lnParticleHeight = 30;
+        const int lnParticleWidth = 5;
+        const int lnParticleHeight = 5;
         const float lrParticleOffsetMtrs = 0.1; 
 
         float lrXmtrs = lsPose.mrX - (lnParticleWidth * (lrParticleOffsetMtrs / 2.0));
