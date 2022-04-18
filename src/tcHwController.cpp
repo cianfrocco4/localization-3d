@@ -327,7 +327,7 @@ tcHwController::ConvertDepthMsg(const sensor_msgs::ImageConstPtr& arpDepthMsg,
     msDepthImage.mrRangeMax = 10.0; //mrMaxRange;
 
     // Only use middle % of the scan
-    const int lnScanHeight = (int)arpDepthMsg->height * 0.5;
+    const int lnScanHeight = (int)arpDepthMsg->height * 0.9;
  
     // Check scan height vs image height
     if(lnScanHeight / 2 > mcCamModel.cy() || 

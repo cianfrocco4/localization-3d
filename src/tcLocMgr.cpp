@@ -415,39 +415,68 @@ tcLocMgr::CalcParticleProb(const CommonTypes::tsParticle &arsPart)
                                 lrEstAngleInc, lsPose);
 
         // Init the vector with 0 values
-        std::vector<float> lcAvgActualDistPerColVec(
-                msCurrDepthImage.mcRanges[0].size(), 0.0);
+        std::vector<std::vector<float>> lcRangePerColVecOfVecs{};
 
-        std::vector<int> lcNumRowsUsedPerCol(
-                msCurrDepthImage.mcRanges[0].size(), 0);
+        ROS_INFO_STREAM("lcRangePerColVecOfVecs.size() = " <<
+                lcRangePerColVecOfVecs.size() << "\n");
 
-        // Get the sum of ranges for each column
-        for(auto lcRow : msCurrDepthImage.mcRanges)
-        {
-            int lnColIdx = 0;
-            for(auto lrRange : lcRow)
+        for(int lnCol = 0; lnCol < msCurrDepthImage.mcRanges[0].size(); lnCol++)
+        {    
+            std::vector<float> lcVec{};
+            for(int lnRow = 0; lnRow < msCurrDepthImage.mcRanges.size(); lnRow++)
             {
+                auto lrRange = msCurrDepthImage.mcRanges[lnRow][lnCol];
                 if(isnormal(lrRange))
-                    lcAvgActualDistPerColVec[lnColIdx] += lrRange;
-                    lcNumRowsUsedPerCol[lnColIdx] += 1;
-                lnColIdx++;       
+                {
+                    ROS_INFO_STREAM("Adding range: " <<
+                            lrRange << " for col: " <<
+                            lnCol << "\n");
+                    lcVec.push_back(lrRange);
+                }
             }
-        }
+
+            if(lcVec.size() > 0)
+                lcRangePerColVecOfVecs.push_back(lcVec);
+        }   
 
         ROS_INFO_STREAM("lcEstimatedDistVec.size() = " << 
                 lcEstimatedDistVec.size() << 
-                ", lcAvgActualDistPerColVec.size() = " <<
-                lcAvgActualDistPerColVec.size() << "\n");
+                " lcRangePerColVecOfVecs[0].size() = " <<
+                lcRangePerColVecOfVecs[0].size() << "\n");
 
-        for(int lnI = 0; lnI < lcAvgActualDistPerColVec.size(); lnI++)
+        std::vector<float> lcVals{};
+        // compute median range for each column
+        for(auto lcColRanges : lcRangePerColVecOfVecs)
         {
-            // Divide sums by num rows to get average for each col
-            auto lrRange = lcAvgActualDistPerColVec[lnI] / 
-                lcNumRowsUsedPerCol[lnI];
+            ROS_INFO("Ranges for col:");
+            for(auto lrRange : lcColRanges)
+            {
+                ROS_INFO_STREAM("Range = " << lrRange << "\n");
+            }
 
-            ROS_INFO_STREAM("Avg Actual Range for Col=" << lnI <<
-                    " = " << lcAvgActualDistPerColVec[lnI] << 
-                    " / " << lnNumRows << " = " << 
+            /*
+            // MEDIAN
+            int lnN = lcColRanges.size() / 2;
+            nth_element(lcColRanges.begin(), 
+                    lcColRanges.begin() + lnN,
+                    lcColRanges.end());
+            */
+
+            // MAX
+            auto lrMax = *std::max_element(lcColRanges.begin(),
+                    lcColRanges.end());
+
+            ROS_INFO_STREAM("Value = " << lrMax << "\n");
+
+            lcVals.push_back(lrMax);
+        }
+
+        for(int lnI = 0; lnI < lcVals.size(); lnI++)
+        {
+            auto lrRange = lcVals[lnI]; 
+
+            ROS_INFO_STREAM("Actual Range for Col=" << lnI <<
+                    " = " << lcVals[lnI] << 
                     lrRange << "\n");
 
             const float lrAngleFromHeading = lrMinAngle + 
